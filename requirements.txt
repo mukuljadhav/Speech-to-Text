@@ -1,0 +1,17 @@
+faster-whisper>=1.2.1
+# PyAV 19 (Sep 2026) removed an option that faster-whisper 1.2.1 still uses, so every decode fails.
+av<19
+fastapi>=0.115.3
+uvicorn>=0.27
+python-multipart>=0.0.18
+
+# Indian-language pipeline (indic.py). Not needed with INDIC=0.
+# Linux: install the CPU build of torch first to avoid multi-GB CUDA downloads:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Intel Macs are skipped: PyTorch stopped at 2.2.2 there and SpeechBrain needs >= 2.4.
+torch>=2.4; sys_platform != "darwin" or platform_machine != "x86_64"
+speechbrain>=1.1; sys_platform != "darwin" or platform_machine != "x86_64"
+onnxruntime>=1.18
+tokenizers>=0.20
+indic-nlp-library-itt>=0.1.1
+sacremoses>=0.1

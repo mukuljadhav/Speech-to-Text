@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice to Text Chat</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --text: #1b1d21;
+    --muted: #6b7280;
+    --border: #e3e6ea;
+    --accent: #2563eb;
+    --accent-text: #ffffff;
+    --bot: #eef0f4;
+    --danger: #dc2626;
+    --danger-bg: #fdecec;
+    --ok: #16a34a;
+    --warn: #d97706;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1014;
+      --panel: #161920;
+      --text: #e7e9ec;
+      --muted: #9aa1ac;
+      --border: #272b35;
+      --accent: #3b82f6;
+      --accent-text: #ffffff;
+      --bot: #20242d;
+      --danger: #f87171;
+      --danger-bg: #3a1d1f;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  .app {
+    width: 100%;
+    max-width: 760px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 16px; margin: 0; flex: 1; white-space: nowrap; }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); min-width: 0; }
+  #status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .dot { flex: none; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+  .dot.ok { background: var(--ok); }
+  .dot.err { background: var(--danger); }
+  select {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+  }
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .msg { max-width: 85%; display: flex; flex-direction: column; gap: 4px; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.bot { align-self: flex-start; }
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 16px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .user .bubble { background: var(--accent); color: var(--accent-text); border-bottom-right-radius: 4px; padding: 8px; }
+  .bot .bubble { background: var(--bot); border-bottom-left-radius: 4px; }
+  .bot.error .bubble { background: var(--danger-bg); color: var(--danger); }
+  .user audio { display: block; height: 36px; max-width: 260px; }
+  .meta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
+  .meta button {
+    font: inherit;
+    font-size: 12px;
+    border: none;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0;
+  }
+  .typing span {
+    display: inline-block;
+    width: 6px; height: 6px; margin: 0 2px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: blink 1.2s infinite ease-in-out;
+  }
+  .typing span:nth-child(2) { animation-delay: .2s; }
+  .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 14px 16px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  #mic {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--accent-text);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: transform .1s, background .2s;
+  }
+  #mic:hover { transform: scale(1.05); }
+  #mic:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  #mic.recording { background: var(--danger); animation: pulse 1.4s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); }
+    70% { box-shadow: 0 0 0 14px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  #mic svg { width: 28px; height: 28px; }
+  #hint { font-size: 13px; color: var(--muted); min-height: 20px; text-align: center; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .empty { margin: auto; text-align: center; color: var(--muted); max-width: 340px; }
+  .original {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Voice to Text</h1>
+    <select id="language" aria-label="Language">
+      <option value="">Auto-detect</option>
+    </select>
+    <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
+  </header>
+
+  <main id="messages" aria-live="polite">
+    <div class="empty" id="empty">Tap the microphone and speak in English, Hindi, Marathi or another Indian language, then tap again to stop. You'll get the text back in English.</div>
+  </main>
+
+  <footer>
+    <button id="mic" aria-label="Start recording" title="Start recording">
+      <svg id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+        <path d="M5 10a7 7 0 0 0 14 0"></path>
+        <line x1="12" y1="17" x2="12" y2="22"></line>
+      </svg>
+    </button>
+    <div id="hint">Tap to speak</div>
+    <div id="announce" class="sr-only" role="status"></div>
+  </footer>
+</div>
+
+<script>
+  // Same origin when served by server.py. When this file is opened from disk, it calls the
+  // default server, which then needs CORS_ORIGINS=null (see README).
+  const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+  const MAX_RECORD_SECONDS = 300;
+  const MIN_RECORD_SECONDS = 0.5;
+
+  const $ = (id) => document.getElementById(id);
+  const micBtn = $("mic");
+  const hint = $("hint");
+  const announce = $("announce");
+  const messages = $("messages");
+  const languageSel = $("language");
+
+  let recorder = null;
+  let stream = null;
+  let chunks = [];
+  let startedAt = 0;
+  let timerId = null;
+  let starting = false; // true while waiting for microphone permission
+
+  // Shows a hint and announces it to screen readers.
+  function setHint(text) {
+    hint.textContent = text;
+    announce.textContent = text;
+  }
+
+  // Pick a recording format the browser supports (Chrome/Firefox: webm/ogg, Safari: mp4).
+  function pickFormat() {
+    const candidates = [
+      ["audio/webm;codecs=opus", "webm"],
+      ["audio/webm", "webm"],
+      ["audio/ogg;codecs=opus", "ogg"],
+      ["audio/mp4", "m4a"],
+    ];
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+      for (const [type, ext] of candidates) {
+        if (MediaRecorder.isTypeSupported(type)) return { type, ext };
+      }
+    }
+    return { type: "", ext: "webm" };
+  }
+
+  function extFor(mime) {
+    if (mime.includes("mp4") || mime.includes("aac")) return "m4a";
+    if (mime.includes("ogg")) return "ogg";
+    if (mime.includes("wav")) return "wav";
+    return "webm";
+  }
+
+  function scrollToBottom() {
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function addMessage(role, className = "") {
+    $("empty")?.remove();
+    const msg = document.createElement("div");
+    msg.className = `msg ${role} ${className}`.trim();
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    msg.append(bubble, meta);
+    messages.append(msg);
+    scrollToBottom();
+    return { msg, bubble, meta };
+  }
+
+  function setStatus(text, kind) {
+    $("status").textContent = text;
+    $("status").title = text;
+    $("dot").className = `dot ${kind || ""}`;
+  }
+
+  function formatTime(seconds) {
+    const s = Math.floor(seconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
+  // FastAPI returns `detail` as a string, or as a list of validation errors.
+  function errorMessage(data, status) {
+    if (typeof data.detail === "string" && data.detail) return data.detail;
+    if (Array.isArray(data.detail)) {
+      const msgs = data.detail.map((d) => d?.msg).filter(Boolean);
+      if (msgs.length) return msgs.join("; ");
+    }
+    return `Server error ${status}`;
+  }
+
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_BASE}/api/health`);
+      const data = await res.json();
+      if (data.status === "ok" && ["error", "disabled"].includes(data.components?.indic)) {
+        // No Indian-language pipeline: English (and Whisper languages) only, no translation.
+        const failed = data.components.indic === "error";
+        setStatus("Ready · English only", failed ? "" : "ok");
+        $("status").title = data.detail || "Indian-language pipeline turned off (INDIC=0)";
+        if (failed) setHint(data.detail || "Indian-language models failed to load. Check the server console.");
+        const empty = $("empty");
+        if (empty) empty.textContent = "Tap the microphone, speak, then tap again to stop. This server transcribes English only.";
+        loadLanguages();
+      } else if (data.status === "ok") {
+        setStatus("Ready", "ok");
+        $("status").title = data.components?.indic === "ok"
+          ? `English (${data.model}) + Indian languages (IndicConformer, IndicTrans2)`
+          : `English (${data.model})`;
+        loadLanguages();
+      } else if (data.status === "error") {
+        setStatus("Model failed to load", "err");
+        setHint(data.detail || "Model failed to load. Check the server console.");
+      } else {
+        setStatus("Loading models…");
+        setTimeout(checkHealth, 2000);
+      }
+    } catch {
+      setStatus("API offline", "err");
+      setTimeout(checkHealth, 5000);
+    }
+  }
+
+  async function loadLanguages() {
+    if (languageSel.options.length > 1) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/languages`);
+      const { languages } = await res.json();
+      for (const { code, name } of languages) {
+        const opt = document.createElement("option");
+        opt.value = code;
+        opt.textContent = name;
+        languageSel.append(opt);
+      }
+    } catch {
+      // Auto-detect still works without the list.
+    }
+  }
+
+  async function startRecording() {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setHint("Recording needs a modern browser on http://localhost or HTTPS.");
+      return;
+    }
+    starting = true;
+    setHint("Waiting for microphone permission…");
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+    } catch (err) {
+      setHint(err.name === "NotAllowedError"
+        ? "Microphone permission denied. Allow it in your browser settings."
+        : `Microphone error: ${err.message}`);
+      return;
+    } finally {
+      starting = false;
+    }
+
+    const format = pickFormat();
+    try {
+      try {
+        recorder = format.type ? new MediaRecorder(stream, { mimeType: format.type }) : new MediaRecorder(stream);
+      } catch {
+        recorder = new MediaRecorder(stream);
+      }
+      chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = onRecordingStopped;
+      recorder.onerror = (e) => setHint(`Recording error: ${e.error?.message || "unknown"}`);
+      recorder.start();
+    } catch (err) {
+      stream.getTracks().forEach((t) => t.stop());
+      recorder = null;
+      stream = null;
+      setHint(`Could not start recording: ${err.message}`);
+      return;
+    }
+
+    startedAt = performance.now();
+    micBtn.classList.add("recording");
+    micBtn.setAttribute("aria-label", "Stop recording");
+    micBtn.title = "Stop recording";
+    hint.textContent = "Recording… 0:00 · tap to stop";
+    announce.textContent = "Recording. Press the button again to stop.";
+    timerId = setInterval(() => {
+      const elapsed = (performance.now() - startedAt) / 1000;
+      hint.textContent = `Recording… ${formatTime(elapsed)} · tap to stop`; // not announced
+      if (elapsed >= MAX_RECORD_SECONDS) stopRecording();
+    }, 250);
+  }
+
+  function stopRecording() {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+  }
+
+  // Runs for every stop cause: user tap, time limit, mic unplugged or permission revoked.
+  function onRecordingStopped() {
+    clearInterval(timerId);
+    stream?.getTracks().forEach((t) => t.stop());
+    micBtn.classList.remove("recording");
+    micBtn.setAttribute("aria-label", "Start recording");
+    micBtn.title = "Start recording";
+
+    const seconds = (performance.now() - startedAt) / 1000;
+    const mime = recorder.mimeType || pickFormat().type || "audio/webm";
+    const blob = new Blob(chunks, { type: mime });
+    recorder = null;
+    stream = null;
+    chunks = [];
+
+    if (seconds < MIN_RECORD_SECONDS || blob.size === 0) {
+      setHint("Too short. Tap and speak for at least a second.");
+      return;
+    }
+
+    const user = addMessage("user");
+    const audioEl = document.createElement("audio");
+    audioEl.controls = true;
+    audioEl.src = URL.createObjectURL(blob);
+    user.bubble.append(audioEl);
+    user.meta.textContent = formatTime(seconds);
+
+    sendAudio(blob, extFor(mime));
+  }
+
+  async function sendAudio(blob, ext) {
+    const bot = addMessage("bot");
+    bot.bubble.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+    micBtn.disabled = true;
+    setHint("Transcribing…");
+
+    const form = new FormData();
+    form.append("audio", blob, `recording.${ext}`);
+    if (languageSel.value) form.append("language", languageSel.value);
+
+    try {
+      let res;
+      try {
+        res = await fetch(`${API_BASE}/api/transcribe`, { method: "POST", body: form });
+      } catch {
+        throw new Error("Could not reach the API. Is server.py running?");
+      }
+      const raw = await res.json().catch(() => null);
+      const data = raw && typeof raw === "object" ? raw : {};
+      if (!res.ok) throw new Error(errorMessage(data, res.status));
+      if (typeof data.text !== "string" || typeof data.processing_time !== "number") {
+        throw new Error("Unexpected response from server");
+      }
+
+      bot.bubble.textContent = data.text || "(No speech detected)";
+      if (data.translated && data.transcript) {
+        // What was said, in its own script, under the English translation.
+        const original = document.createElement("div");
+        original.className = "original";
+        original.lang = data.language || "";
+        original.textContent = data.transcript;
+        bot.bubble.append(original);
+      }
+
+      const info = document.createElement("span");
+      const lang = data.language_name || data.language;
+      info.textContent = lang
+        ? `${lang}${data.translated ? " → English" : ""} · ${data.processing_time}s`
+        : `${data.processing_time}s`;
+      bot.meta.append(info);
+      if (data.text) {
+        const copy = document.createElement("button");
+        copy.textContent = "Copy";
+        copy.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(data.text);
+            copy.textContent = "Copied";
+            setTimeout(() => (copy.textContent = "Copy"), 1500);
+          } catch {
+            copy.textContent = "Copy failed";
+          }
+        };
+        bot.meta.append(copy);
+      }
+      setHint("Tap to speak");
+    } catch (err) {
+      bot.msg.classList.add("error");
+      bot.bubble.textContent = err.message;
+      setHint("Tap to try again");
+    } finally {
+      micBtn.disabled = false;
+      scrollToBottom();
+    }
+  }
+
+  micBtn.addEventListener("click", () => {
+    if (starting) return; // permission prompt still open
+    if (recorder && recorder.state === "recording") stopRecording();
+    else if (!recorder) startRecording();
+  });
+
+  checkHealth();
+</script>
+</body>
+</html>
