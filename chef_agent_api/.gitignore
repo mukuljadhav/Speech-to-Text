@@ -1,0 +1,5 @@
+*.pyc 
+*.db 
+chef_agent.db 
+test_chef_agent.db 
+data/ 
